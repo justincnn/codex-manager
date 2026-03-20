@@ -714,3 +714,20 @@ def delete_tm_service(db: Session, service_id: int) -> bool:
     db.delete(svc)
     db.commit()
     return True
+
+
+def update_outlook_refresh_token(db: Session, service_id: int, email: str, new_refresh_token: str):
+    """更新 EmailService.config 中指定邮箱的 refresh_token"""
+    service = db.query(EmailService).filter(EmailService.id == service_id).first()
+    if not service or not service.config:
+        return
+    config = dict(service.config)
+    # 单账户格式
+    if config.get("email", "").lower() == email.lower():
+        config["refresh_token"] = new_refresh_token
+    # 多账户列表格式
+    for acc in config.get("accounts", []):
+        if acc.get("email", "").lower() == email.lower():
+            acc["refresh_token"] = new_refresh_token
+    service.config = config
+    db.commit()

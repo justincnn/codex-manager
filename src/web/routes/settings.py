@@ -705,7 +705,6 @@ async def get_outlook_settings():
 
     return {
         "default_client_id": settings.outlook_default_client_id,
-        "provider_priority": settings.outlook_provider_priority,
         "health_failure_threshold": settings.outlook_health_failure_threshold,
         "health_disable_duration": settings.outlook_health_disable_duration,
     }

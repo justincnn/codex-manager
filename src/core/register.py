@@ -286,6 +286,7 @@ class RegistrationEngine:
         """
         try:
             signup_body = f'{{"username":{{"value":"{self.email}","kind":"email"}},"screen_hint":"signup"}}'
+            #signup_body = f'{{"username":{{"value":"{self.email}","kind":"email"}},"screen_hint":"login_or_signup"}}'
 
             headers = {
                 "referer": "https://auth.openai.com/create-account",
@@ -318,7 +319,7 @@ class RegistrationEngine:
                 self._log(f"响应页面类型: {page_type}")
 
                 # 判断是否为已注册账号
-                is_existing = page_type == OPENAI_PAGE_TYPES["EMAIL_OTP_VERIFICATION"]
+                is_existing = page_type != OPENAI_PAGE_TYPES["PASSWORD_REGISTRATION"]
 
                 if is_existing:
                     self._log(f"检测到已注册账号，将自动切换到登录流程")
@@ -367,8 +368,7 @@ class RegistrationEngine:
             self._log(f"提交密码状态: {response.status_code}")
 
             if response.status_code != 200:
-                error_text = response.text[:500]
-                self._log(f"密码注册失败: {error_text}", "warning")
+                self._log(f"密码注册失败: {response.json().get("error", {}).get("message", "")}", "warning")
 
                 # 解析错误信息，判断是否是邮箱已注册
                 try:
@@ -377,7 +377,7 @@ class RegistrationEngine:
                     error_code = error_json.get("error", {}).get("code", "")
 
                     # 检测邮箱已注册的情况
-                    if "already" in error_msg.lower() or "exists" in error_msg.lower() or error_code == "user_exists":
+                    if "already" in error_msg.lower() or "exists" in error_msg.lower() or "again" in error_msg.lower() or error_code == "user_exists" or error_code == "invalid_request":
                         self._log(f"邮箱 {self.email} 可能已在 OpenAI 注册过", "error")
                         # 标记此邮箱为已注册状态
                         self._mark_email_as_registered()
@@ -392,24 +392,74 @@ class RegistrationEngine:
             self._log(f"密码注册失败: {e}", "error")
             return False, None
 
-    def _mark_email_as_registered(self):
-        """标记邮箱为已注册状态（用于防止重复尝试）"""
+    def _login_password(self, did: str, sen_token: Optional[str]) -> bool:
+        """注册密码"""
         try:
+            password = ""
             with get_db() as db:
                 # 检查是否已存在该邮箱的记录
                 existing = crud.get_account_by_email(db, self.email)
-                if not existing:
-                    # 创建一个失败记录，标记该邮箱已注册过
+                # 生成密码
+                password = existing.password
+
+                # 提交密码登录
+                register_body = json.dumps({
+                    "password": password
+                })
+
+                if sen_token:
+                    sentinel = f'{{"p": "", "id": "{did}", "flow": "password_verify"}}'
+
+                response = self.session.post(
+                    OPENAI_API_ENDPOINTS["password_verify"],
+                    headers={
+                        "referer": "https://auth.openai.com/log-in/password",
+                        "accept": "application/json",
+                        "content-type": "application/json",
+                        "openai-sentinel-token": sentinel
+                    },
+                    data=register_body,
+                )
+
+                self._log(f"提交密码状态: {response.status_code}")
+
+                if response.status_code != 200:
+                    error_text = response.text[:500]
+                    self._log(f"密码登录失败: {error_text}", "warning")
+                    return False
+                return True
+
+        except Exception as e:
+            self._log(f"密码登录失败: {e}", "error")
+            return False, None
+
+    def _mark_email_as_registered(self):
+        """标记邮箱为已注册状态（OpenAI 侧已存在该账号）"""
+        try:
+            with get_db() as db:
+                existing = crud.get_account_by_email(db, self.email)
+                if existing:
+                    # 数据库中已有该账号，更新 extra_data 标记
+                    extra = existing.extra_data or {}
+                    extra["openai_already_registered"] = True
+                    crud.update_account(
+                        db,
+                        existing.id,
+                        extra_data=extra
+                    )
+                    self._log(f"已更新数据库中 {self.email} 的已注册标记")
+                else:
+                    # 数据库中不存在，创建失败记录并标记
                     crud.create_account(
                         db,
                         email=self.email,
-                        password="",  # 空密码表示未成功注册
+                        password="",
                         email_service=self.email_service.service_type.value,
                         email_service_id=self.email_info.get("service_id") if self.email_info else None,
                         status="failed",
-                        extra_data={"register_failed_reason": "email_already_registered_on_openai"}
+                        extra_data={"openai_already_registered": True}
                     )
-                    self._log(f"已在数据库中标记邮箱 {self.email} 为已注册状态")
+                    self._log(f"已在数据库中标记 {self.email} 为已注册状态")
         except Exception as e:
             logger.warning(f"标记邮箱状态失败: {e}")
 
@@ -722,9 +772,11 @@ class RegistrationEngine:
                 result.error_message = f"提交注册表单失败: {signup_result.error_message}"
                 return result
 
-            # 8. [已注册账号跳过] 注册密码
+            # 8. 检测到已注册账号 → 直接终止任务
             if self._is_existing_account:
-                self._log("8. [已注册账号] 跳过密码设置，OTP 已自动发送")
+                self._log(f"8. 邮箱 {self.email} 在 OpenAI 已注册，跳过注册流程", "warning")
+                result.error_message = f"邮箱 {self.email} 已在 OpenAI 注册"
+                return result
             else:
                 self._log("8. 注册密码...")
                 password_ok, password = self._register_password()
@@ -732,16 +784,11 @@ class RegistrationEngine:
                     result.error_message = "注册密码失败"
                     return result
 
-            # 9. [已注册账号跳过] 发送验证码
-            if self._is_existing_account:
-                self._log("9. [已注册账号] 跳过发送验证码，使用自动发送的 OTP")
-                # 已注册账号的 OTP 在提交表单时已自动发送，记录时间戳
-                self._otp_sent_at = time.time()
-            else:
-                self._log("9. 发送验证码...")
-                if not self._send_verification_code():
-                    result.error_message = "发送验证码失败"
-                    return result
+            # 9. 发送验证码
+            self._log("9. 发送验证码...")
+            if not self._send_verification_code():
+                result.error_message = "发送验证码失败"
+                return result
 
             # 10. 获取验证码
             self._log("10. 等待验证码...")
@@ -756,14 +803,11 @@ class RegistrationEngine:
                 result.error_message = "验证验证码失败"
                 return result
 
-            # 12. [已注册账号跳过] 创建用户账户
-            if self._is_existing_account:
-                self._log("12. [已注册账号] 跳过创建用户账户")
-            else:
-                self._log("12. 创建用户账户...")
-                if not self._create_user_account():
-                    result.error_message = "创建用户账户失败"
-                    return result
+            # 12. 创建用户账户
+            self._log("12. 创建用户账户...")
+            if not self._create_user_account():
+                result.error_message = "创建用户账户失败"
+                return result
 
             # 13. 获取 Workspace ID
             self._log("13. 获取 Workspace ID...")
@@ -803,7 +847,7 @@ class RegistrationEngine:
             result.password = self.password or ""  # 保存密码（已注册账号为空）
 
             # 设置来源标记
-            result.source = "login" if self._is_existing_account else "register"
+            result.source = "register"
 
             # 尝试获取 session_token 从 cookie
             session_cookie = self.session.cookies.get("__Secure-next-auth.session-token")
@@ -814,10 +858,7 @@ class RegistrationEngine:
 
             # 17. 完成
             self._log("=" * 60)
-            if self._is_existing_account:
-                self._log("登录成功! (已注册账号)")
-            else:
-                self._log("注册成功!")
+            self._log("注册成功!")
             self._log(f"邮箱: {result.email}")
             self._log(f"Account ID: {result.account_id}")
             self._log(f"Workspace ID: {result.workspace_id}")
@@ -828,7 +869,6 @@ class RegistrationEngine:
                 "email_service": self.email_service.service_type.value,
                 "proxy_used": self.proxy_url,
                 "registered_at": datetime.now().isoformat(),
-                "is_existing_account": self._is_existing_account,
             }
 
             return result

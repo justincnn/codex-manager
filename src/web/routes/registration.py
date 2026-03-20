@@ -340,6 +340,7 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
 
                     if selected_service and selected_service.config:
                         config = selected_service.config.copy()
+                        config['service_id'] = selected_service.id
                         crud.update_registration_task(db, task_uuid, email_service_id=selected_service.id)
                         logger.info(f"使用数据库 Outlook 账户: {selected_service.name}")
                     else:
