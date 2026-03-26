@@ -285,6 +285,9 @@ def _normalize_email_service_config(
     elif service_type == EmailServiceType.DUCK_MAIL:
         if 'domain' in normalized and 'default_domain' not in normalized:
             normalized['default_domain'] = normalized.pop('domain')
+    elif service_type == EmailServiceType.CLOUD_MAIL:
+        if 'domain' in normalized and 'default_domain' not in normalized:
+            normalized['default_domain'] = normalized.pop('domain')
 
     if proxy_url and 'proxy_url' not in normalized:
         normalized['proxy_url'] = proxy_url
@@ -527,6 +530,10 @@ def _build_email_service_candidates(
         append_database_candidates("imap_mail")
         if not candidates:
             raise ValueError("没有可用的 IMAP 邮箱服务，请先在邮箱服务中添加")
+    elif service_type == EmailServiceType.CLOUD_MAIL:
+        append_database_candidates("cloud_mail")
+        if not candidates:
+            raise ValueError("没有可用的 Cloud Mail 邮箱服务，请先在邮箱服务页面添加服务")
     else:
         append_candidate(service_type, email_service_config or {})
 
@@ -1783,6 +1790,11 @@ async def get_available_email_services():
             "available": False,
             "count": 0,
             "services": []
+        },
+        "cloud_mail": {
+            "available": False,
+            "count": 0,
+            "services": []
         }
     }
 
@@ -1910,6 +1922,24 @@ async def get_available_email_services():
 
         result["imap_mail"]["count"] = len(imap_mail_services)
         result["imap_mail"]["available"] = len(imap_mail_services) > 0
+
+        cloud_mail_services = db.query(EmailServiceModel).filter(
+            EmailServiceModel.service_type == "cloud_mail",
+            EmailServiceModel.enabled == True
+        ).order_by(EmailServiceModel.priority.asc()).all()
+
+        for service in cloud_mail_services:
+            config = service.config or {}
+            result["cloud_mail"]["services"].append({
+                "id": service.id,
+                "name": service.name,
+                "type": "cloud_mail",
+                "default_domain": config.get("default_domain"),
+                "priority": service.priority
+            })
+
+        result["cloud_mail"]["count"] = len(cloud_mail_services)
+        result["cloud_mail"]["available"] = len(cloud_mail_services) > 0
 
     return result
 
