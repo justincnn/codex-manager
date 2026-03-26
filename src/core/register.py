@@ -1681,6 +1681,10 @@ class RegistrationEngine:
         try:
             # 获取默认 client_id
             settings = get_settings()
+            metadata = dict(result.metadata or {})
+            verification_state = self.email_service.export_verification_state(result.email or self.email)
+            if verification_state["used_codes"] or verification_state["seen_messages"]:
+                metadata["verification_state"] = verification_state
 
             with get_db() as db:
                 # 保存账户信息
@@ -1699,7 +1703,7 @@ class RegistrationEngine:
                     id_token=result.id_token,
                     cookies=result.cookies,
                     proxy_used=self.proxy_url,
-                    extra_data=result.metadata,
+                    extra_data=metadata,
                     source=result.source
                 )
 

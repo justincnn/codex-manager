@@ -325,15 +325,15 @@ def test_duck_mail_service_skips_previously_used_code_even_with_small_timestamp_
         ),
         FakeResponse(
             payload={
-                "id": "msg-1",
-                "text": "Your OpenAI verification code is 111111",
+                "id": "msg-2",
+                "text": "Your OpenAI verification code is 654321",
                 "html": [],
             }
         ),
         FakeResponse(
             payload={
-                "id": "msg-2",
-                "text": "Your OpenAI verification code is 654321",
+                "id": "msg-1",
+                "text": "Your OpenAI verification code is 111111",
                 "html": [],
             }
         ),
