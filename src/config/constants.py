@@ -48,6 +48,25 @@ class EmailServiceType(str, Enum):
 APP_NAME = "OpenAI/Codex CLI 自动注册系统"
 APP_VERSION = "2.0.0"
 APP_DESCRIPTION = "自动注册 OpenAI/Codex CLI 账号的系统"
+DEFAULT_WEBUI_HOST = "0.0.0.0"
+DEFAULT_WEBUI_PORT = 15555
+DEFAULT_WEBUI_LOCAL_HOST = "127.0.0.1"
+
+
+def build_http_url(host: str, port: int, path: str = "") -> str:
+    """构造本地 HTTP URL。"""
+    normalized_path = path if not path or path.startswith("/") else f"/{path}"
+    return f"http://{host}:{port}{normalized_path}"
+
+
+def build_ws_url(host: str, port: int, path: str = "") -> str:
+    """构造本地 WebSocket URL。"""
+    normalized_path = path if not path or path.startswith("/") else f"/{path}"
+    return f"ws://{host}:{port}{normalized_path}"
+
+
+DEFAULT_WEBUI_BASE_URL = build_http_url(DEFAULT_WEBUI_LOCAL_HOST, DEFAULT_WEBUI_PORT)
+DEFAULT_WEBUI_WS_BASE_URL = build_ws_url(DEFAULT_WEBUI_LOCAL_HOST, DEFAULT_WEBUI_PORT)
 
 # ============================================================================
 # OpenAI OAuth 相关常量
@@ -57,7 +76,7 @@ APP_DESCRIPTION = "自动注册 OpenAI/Codex CLI 账号的系统"
 OAUTH_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 OAUTH_AUTH_URL = "https://auth.openai.com/oauth/authorize"
 OAUTH_TOKEN_URL = "https://auth.openai.com/oauth/token"
-OAUTH_REDIRECT_URI = "http://localhost:15555/auth/callback"
+OAUTH_REDIRECT_URI = build_http_url("localhost", DEFAULT_WEBUI_PORT, "/auth/callback")
 OAUTH_SCOPE = "openid email profile offline_access"
 
 # Codex CLI 专用 OAuth 参数（用于生成 Codex 兼容的 auth.json）
@@ -280,8 +299,8 @@ DEFAULT_SETTINGS = [
     ("registration.max_retries", "3", "最大重试次数", "registration"),
     ("registration.timeout", "120", "超时时间（秒）", "registration"),
     ("registration.default_password_length", "12", "默认密码长度", "registration"),
-    ("webui.host", "0.0.0.0", "Web UI 监听主机", "webui"),
-    ("webui.port", "15555", "Web UI 监听端口", "webui"),
+    ("webui.host", DEFAULT_WEBUI_HOST, "Web UI 监听主机", "webui"),
+    ("webui.port", str(DEFAULT_WEBUI_PORT), "Web UI 监听端口", "webui"),
     ("webui.debug", "true", "调试模式", "webui"),
 ]
 

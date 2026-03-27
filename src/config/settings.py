@@ -10,6 +10,8 @@ from pydantic import BaseModel, field_validator
 from pydantic.types import SecretStr
 from dataclasses import dataclass
 
+from .constants import APP_NAME, APP_VERSION, DEFAULT_WEBUI_HOST, DEFAULT_WEBUI_PORT
+
 
 class SettingCategory(str, Enum):
     """设置分类"""
@@ -42,13 +44,13 @@ SETTING_DEFINITIONS: Dict[str, SettingDefinition] = {
     # 应用信息
     "app_name": SettingDefinition(
         db_key="app.name",
-        default_value="OpenAI/Codex CLI 自动注册系统",
+        default_value=APP_NAME,
         category=SettingCategory.GENERAL,
         description="应用名称"
     ),
     "app_version": SettingDefinition(
         db_key="app.version",
-        default_value="2.0.0",
+        default_value=APP_VERSION,
         category=SettingCategory.GENERAL,
         description="应用版本"
     ),
@@ -70,13 +72,13 @@ SETTING_DEFINITIONS: Dict[str, SettingDefinition] = {
     # Web UI 配置
     "webui_host": SettingDefinition(
         db_key="webui.host",
-        default_value="0.0.0.0",
+        default_value=DEFAULT_WEBUI_HOST,
         category=SettingCategory.WEBUI,
         description="Web UI 监听地址"
     ),
     "webui_port": SettingDefinition(
         db_key="webui.port",
-        default_value=15555,
+        default_value=DEFAULT_WEBUI_PORT,
         category=SettingCategory.WEBUI,
         description="Web UI 监听端口"
     ),
@@ -591,8 +593,8 @@ class Settings(BaseModel):
     """
 
     # 应用信息
-    app_name: str = "OpenAI/Codex CLI 自动注册系统"
-    app_version: str = "2.0.0"
+    app_name: str = APP_NAME
+    app_version: str = APP_VERSION
     debug: bool = False
 
     # 数据库配置
@@ -615,8 +617,8 @@ class Settings(BaseModel):
         return v
 
     # Web UI 配置
-    webui_host: str = "0.0.0.0"
-    webui_port: int = 15555
+    webui_host: str = DEFAULT_WEBUI_HOST
+    webui_port: int = DEFAULT_WEBUI_PORT
     webui_secret_key: SecretStr = SecretStr("your-secret-key-change-in-production")
     webui_access_password: SecretStr = SecretStr("admin123")
 

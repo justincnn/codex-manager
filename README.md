@@ -104,6 +104,20 @@ cp .env.example .env
 
 > 优先级：命令行参数 > 环境变量（`.env`）> 数据库设置 > 默认值
 
+### 修改端口
+
+默认端口是 `15555`。现在已经收敛到少数几个固定入口：
+
+- 本地临时启动改端口：直接用 `python webui.py --port 18080`
+- 本地通过 `.env` 改端口：设置 `APP_PORT=18080`
+- 源码里的默认端口：修改 `src/config/constants.py` 里的 `DEFAULT_WEBUI_PORT`
+- Docker Compose 默认端口：修改 `docker-compose.yml` 顶部的 `x-webui-port`
+- Docker 镜像构建默认端口：修改 `Dockerfile` 里的 `ARG DEFAULT_WEBUI_PORT`
+
+补充说明：
+- `src/config/constants.py` 的 `DEFAULT_WEBUI_PORT` 会同时影响默认 Web UI 端口、默认回调地址和 e2e 脚本默认地址。
+- `docker-compose.yml` 里已经把端口映射、容器内 `WEBUI_PORT` 和健康检查统一绑到同一个 `x-webui-port`，改一处就够。
+
 ### 启动 Web UI
 
 ```bash
@@ -141,6 +155,18 @@ docker-compose up -d
 ```
 你可以在 `docker-compose.yml` 中修改相关的环境变量，例如配置端口或者设置 `WEBUI_ACCESS_PASSWORD` 访问密码。
 
+如果要修改 Docker Compose 对外端口，直接改文件顶部这一行即可：
+
+```yaml
+x-webui-port: &webui-port 15555
+```
+
+这一个值会同时同步到：
+
+- 宿主机端口映射
+- 容器内 `WEBUI_PORT`
+- 健康检查访问地址
+
 #### 直接使用 docker run
 
 如果你不想使用 docker-compose，也可以直接拉取并运行镜像：
@@ -164,6 +190,19 @@ docker run -d \
 - `LOG_LEVEL`: 日志级别，如 `info`, `debug`
 
 > **注意**：`-v $(pwd)/data:/app/data` 挂载参数非常重要，它确保了你的数据库文件和账户信息在容器重启或更新后不会丢失。
+
+如果你要把容器端口改成 `18080`，`-p` 和 `WEBUI_PORT` 需要一起改：
+
+```bash
+docker run -d \
+  -p 18080:18080 \
+  -e WEBUI_HOST=0.0.0.0 \
+  -e WEBUI_PORT=18080 \
+  -e WEBUI_ACCESS_PASSWORD=your_secure_password \
+  -v $(pwd)/data:/app/data \
+  --name codex-register \
+  ghcr.io/yunxilyf/codex-register:latest
+```
 
 ### 使用远程 PostgreSQL
 
@@ -335,7 +374,7 @@ docker-compose up -d
 
 ### 配置说明
 
-**端口映射**：默认 `15555` 端口，可在 `docker-compose.yml` 中修改。
+**端口映射**：默认 `15555` 端口，修改 `docker-compose.yml` 顶部的 `x-webui-port` 即可。
 
 **数据持久化**：
 ```yaml
@@ -347,9 +386,9 @@ volumes:
 **环境变量配置**：
 ```yaml
 environment:
-  - APP_ACCESS_PASSWORD=mypassword
-  - APP_HOST=0.0.0.0
-  - APP_PORT=15555
+  WEBUI_ACCESS_PASSWORD: mypassword
+  WEBUI_HOST: 0.0.0.0
+  WEBUI_PORT: 15555
 ```
 
 ### 常用命令

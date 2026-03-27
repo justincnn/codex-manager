@@ -10,6 +10,8 @@ from typing import Any, Dict, List
 import httpx
 import websockets
 
+from src.config.constants import DEFAULT_WEBUI_BASE_URL, DEFAULT_WEBUI_WS_BASE_URL
+
 
 STALE_ERROR = "服务启动时检测到未完成的历史任务，已标记失败，请重新发起。"
 
@@ -254,8 +256,8 @@ def run_verify_recovery_mode(base_url: str, db_path: Path, state_path: Path, rep
 def main() -> None:
     parser = argparse.ArgumentParser(description="真实服务功能可用性验证脚本")
     parser.add_argument("--mode", choices=["live", "prepare-recovery", "verify-recovery"], required=True)
-    parser.add_argument("--base-url", default="http://127.0.0.1:15555")
-    parser.add_argument("--ws-url", default="ws://127.0.0.1:15555")
+    parser.add_argument("--base-url", default=DEFAULT_WEBUI_BASE_URL)
+    parser.add_argument("--ws-url", default=DEFAULT_WEBUI_WS_BASE_URL)
     parser.add_argument("--db-path", required=True)
     parser.add_argument("--report-path", default="tests_runtime/runtime_functionality_report.json")
     parser.add_argument("--state-path", default="tests_runtime/runtime_recovery_state.json")

@@ -335,12 +335,29 @@ class TempMailService(BaseEmailService):
                     time.sleep(3)
                     continue
 
-                for mail in mails:
+                ordered_mails = self._sort_items_by_message_time(
+                    mails,
+                    lambda item: (
+                        item.get("createdAt")
+                        or item.get("created_at")
+                        or item.get("receivedAt")
+                        or item.get("received_at")
+                    ) if isinstance(item, dict) else None,
+                )
+
+                for mail in ordered_mails:
                     mail_id = mail.get("id")
                     if not mail_id or mail_id in seen_mail_ids:
                         continue
 
                     seen_mail_ids.add(mail_id)
+                    message_marker = f"id:{mail_id}"
+
+                    if self._is_message_before_otp(
+                        mail.get("createdAt") or mail.get("created_at") or mail.get("receivedAt") or mail.get("received_at"),
+                        otp_sent_at,
+                    ):
+                        continue
 
                     parsed = self._extract_mail_fields(mail)
                     sender = parsed["sender"].lower()
@@ -355,6 +372,8 @@ class TempMailService(BaseEmailService):
 
                     code = self._extract_otp_from_text(content, pattern)
                     if code:
+                        if not self._accept_verification_code(email, code, message_marker):
+                            continue
                         logger.info(f"从 TempMail 邮箱 {email} 找到验证码: {code}")
                         self.update_status(True)
                         return code

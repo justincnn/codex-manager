@@ -271,7 +271,12 @@ class DuckMailService(BaseEmailService):
                 )
                 messages = response.get("hydra:member", [])
 
-                for message in messages:
+                ordered_messages = self._sort_items_by_message_time(
+                    messages,
+                    lambda item: item.get("createdAt") if isinstance(item, dict) else None,
+                )
+
+                for message in ordered_messages:
                     message_id = str(message.get("id") or "").strip()
                     if not message_id or message_id in seen_message_ids:
                         continue
@@ -281,6 +286,7 @@ class DuckMailService(BaseEmailService):
                         continue
 
                     seen_message_ids.add(message_id)
+                    message_marker = f"id:{message_id}"
                     detail = self._make_request(
                         "GET",
                         f"/messages/{message_id}",
@@ -293,8 +299,11 @@ class DuckMailService(BaseEmailService):
 
                     match = re.search(pattern, content)
                     if match:
+                        code = match.group(1)
+                        if not self._accept_verification_code(email, code, message_marker):
+                            continue
                         self.update_status(True)
-                        return match.group(1)
+                        return code
             except Exception as e:
                 logger.debug(f"DuckMail 轮询验证码失败: {e}")
 

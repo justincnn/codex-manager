@@ -241,7 +241,12 @@ class TempmailService(BaseEmailService):
                     time.sleep(3)
                     continue
 
-                for msg in email_list:
+                ordered_emails = self._sort_items_by_message_time(
+                    email_list,
+                    lambda item: item.get("date") if isinstance(item, dict) else None,
+                )
+
+                for msg in ordered_emails:
                     if not isinstance(msg, dict):
                         continue
 
@@ -260,6 +265,7 @@ class TempmailService(BaseEmailService):
                     if not message_id or message_id in seen_ids:
                         continue
                     seen_ids.add(message_id)
+                    message_marker = f"id:{message_id}"
 
                     sender = str(msg.get("from", "")).lower()
                     subject = str(msg.get("subject", ""))
@@ -276,6 +282,8 @@ class TempmailService(BaseEmailService):
                     match = re.search(pattern, content)
                     if match:
                         code = match.group(1)
+                        if not self._accept_verification_code(email, code, message_marker):
+                            continue
                         logger.info(f"找到验证码: {code}")
                         self.update_status(True)
                         return code
