@@ -202,7 +202,7 @@ def generate_team_link(
              "&elements_session_client[is_aggregation_expected]=false"
              "&client_attribution_metadata[merchant_integration_additional_elements][0]=payment"
              "&client_attribution_metadata[merchant_integration_additional_elements][1]=address"
-             f"&key={data["publishable_key"]}"
+             f"&key={data['publishable_key']}"
         ,
         proxies=_build_proxies(proxy),
         timeout=30,
